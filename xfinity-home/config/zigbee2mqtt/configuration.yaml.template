@@ -1,0 +1,117 @@
+# =============================================================================
+# Zigbee2MQTT configuration - reclaimed Xfinity Home Zigbee network
+# =============================================================================
+# TEMPLATE. Tokens wrapped in double curly braces are substituted by
+# scripts/03-Setup-Zigbee2MQTT.ps1 and the result is written to:
+#   <install>\data\configuration.yaml
+#
+# Seeding this file before first launch bypasses the Zigbee2MQTT web onboarding
+# wizard that would otherwise appear on port 8080.
+#
+# Keys validated against lib/util/settings.schema.json (Zigbee2MQTT 2.13.0).
+# =============================================================================
+
+mqtt:
+  server: mqtt://127.0.0.1:1883
+  user: '{{MQTT_USER}}'
+  password: '{{MQTT_PASSWORD}}'
+  base_topic: zigbee2mqtt
+  client_id: zigbee2mqtt
+  keepalive: 60
+  # Retain device state at the broker so dashboards populate immediately on
+  # restart instead of waiting for each battery sensor's next report.
+  force_disable_retain: false
+
+serial:
+  # COM port of the Zigbee coordinator. Determined by Find-Coordinators.ps1.
+  # Set to null to let Zigbee2MQTT autodetect (unreliable when a Z-Wave stick
+  # is also present - both enumerate as generic USB serial devices).
+  port: '{{SERIAL_PORT}}'
+{{ADAPTER_LINE}}
+{{BAUDRATE_LINE}}
+  # Hardware flow control. Required by some EmberZNet/EZSP adapters and
+  # harmful on others. Leave false unless the adapter documentation says
+  # otherwise or the coordinator fails to start.
+  rtscts: false
+
+advanced:
+  # -- Zigbee radio --------------------------------------------------------
+  # 11, 15, 20 and 25 are the ZLL channels. 25 sits above the busiest 2.4 GHz
+  # Wi-Fi territory and is the safest default in a dense RF environment.
+  # CHANGING THIS LATER FORCES A RE-PAIR OF EVERY DEVICE. Because the whole
+  # fleet is being factory reset and paired fresh, now is the free moment to
+  # choose. Verify against your Wi-Fi channel before committing.
+  channel: {{CHANNEL}}
+
+  # GENERATE creates cryptographically random values on first start and
+  # persists them. Never copy a network key from an example config - a shared
+  # key means anyone with that key can join and control your network,
+  # including the door lock.
+  network_key: GENERATE
+  pan_id: GENERATE
+  ext_pan_id: GENERATE
+
+  # -- Behaviour -----------------------------------------------------------
+  # Retain last known state across restarts. Essential here: most ex-Xfinity
+  # sensors are sleepy end devices that report only on state change, so
+  # without caching a restart leaves every contact sensor unknown for hours.
+  cache_state: true
+  cache_state_persistent: true
+  cache_state_send_on_startup: true
+
+  last_seen: ISO_8601
+  elapsed: false
+
+  # -- External converters -------------------------------------------------
+  # REQUIRED for the custom ex-Xfinity device handlers in external_converters\.
+  # Zigbee2MQTT 2.11.0 and later disable external JavaScript by default; with
+  # this left off the converter files are silently ignored and the devices show
+  # up as unsupported with no error explaining why.
+  #
+  # This does allow arbitrary user-supplied JavaScript to execute in the
+  # Zigbee2MQTT process. Only place code here that you have read.
+  enable_external_js: true
+
+  # -- Logging -------------------------------------------------------------
+  log_level: info
+  log_output:
+    - console
+    - file
+  log_directory: 'data/log/%TIMESTAMP%'
+  log_rotation: true
+  log_directories_to_keep: 10
+
+frontend:
+  enabled: true
+  port: 8080
+  # Bind to loopback only. The frontend has no login by default beyond the
+  # token below; do not expose it to the LAN until you have considered that.
+  host: 127.0.0.1
+  auth_token: '{{FRONTEND_TOKEN}}'
+
+# Home Assistant MQTT discovery. Harmless when unused - it only publishes
+# extra discovery topics. Flip to true if you later add Home Assistant.
+homeassistant:
+  enabled: false
+
+# Track whether devices are responding. 'active' targets mains-powered
+# devices, 'passive' targets battery-powered sleepy end devices.
+availability:
+  enabled: true
+  active:
+    timeout: 10
+  passive:
+    timeout: 1500
+
+device_options:
+  # Publish each attribute as its own MQTT topic in addition to the combined
+  # JSON payload. Makes simple dashboards and shell scripts much easier to
+  # wire up without a JSON parser.
+  legacy: false
+
+# Permit-join is deliberately NOT enabled here. Leaving a Zigbee network open
+# to joining is how unknown devices end up on it. Open it deliberately from the
+# frontend for the duration of each pairing, then close it.
+
+# Devices are appended below this line by Zigbee2MQTT as they join.
+devices: {}

@@ -1,0 +1,186 @@
+# Local smart home control plane for reclaimed Xfinity Home hardware
+
+A cloud-free, MQTT-based control plane for ex-Xfinity Zigbee sensors, a Z-Wave
+smart lock and Sercomm IP cameras, running natively on Windows.
+
+## What this is, and what it is not
+
+This is a **deployment kit**, not a running system. It was authored in a Linux
+container with no access to the Windows host, its USB ports or its device
+network — so nothing here has been executed against real hardware. Every
+script is written to be run by you, on the target machine, in order.
+
+That constraint shaped the design in a way that is worth knowing about:
+because nothing could be verified interactively, the scripts verify
+*themselves*. `02-Setup-Mosquitto.ps1` proves the broker with a real
+authenticated publish/subscribe round trip and then checks that anonymous
+access is refused. `03-Setup-Zigbee2MQTT.ps1` fails loudly if template
+substitution leaves a token behind. `Find-Coordinators.ps1` refuses to guess
+between two identical-looking USB bridges. Where something genuinely cannot be
+known ahead of time — your COM ports, your camera's RTSP path, the exact ZCL
+model IDs your sensors report — there is a tool that discovers it rather than a
+value hardcoded on a guess.
+
+Everything below was checked against Zigbee2MQTT 2.13.0 sources rather than
+recalled: the settings schema, the external converter format, the device
+definitions your hardware may already match.
+
+## Architecture
+
+```
+   Zigbee radio                Z-Wave radio               IP cameras
+   (USB coordinator)           (USB coordinator)          (Sercomm XCam)
+        │                            │                          │
+        │ serial                     │ serial                   │ RTSP
+        ▼                            ▼                          ▼
+   Zigbee2MQTT                  Z-Wave JS UI                 go2rtc
+   (Node, from source)          (standalone exe)         (standalone exe)
+        │                            │                          │
+        └────────────┬───────────────┘                          │
+                     ▼                                          │
+              Mosquitto broker                                  │
+              127.0.0.1:1883 (auth)                             │
+              127.0.0.1:9001 (websockets)                       │
+                     │                                          │
+                     └──────────────┬───────────────────────────┘
+                                    ▼
+                          dashboard / automations
+```
+
+Nothing in this stack talks to a vendor cloud. The broker is the only
+integration point, so a dashboard subscribes in one place rather than speaking
+three protocols.
+
+## Order of operations
+
+Run each from an **elevated PowerShell** session, in this order.
+
+| # | Script | What it does |
+|---|---|---|
+| 0 | `Find-Coordinators.ps1` | Identify which COM port is which radio |
+| 1 | `01-Install-Prereqs.ps1` | Node 22 LTS, Git, corepack/pnpm |
+| 2 | `02-Setup-Mosquitto.ps1` | Broker, credentials, service, firewall, verify |
+| 3 | `03-Setup-Zigbee2MQTT.ps1` | Clone, build, configure, startup task |
+| 4 | `04-Setup-ZWaveJS.ps1` | Z-Wave JS UI + **security keys for the lock** |
+| 5 | `05-Setup-Cameras.ps1` | go2rtc + RTSP path discovery |
+
+Two helpers, used as needed rather than in sequence:
+
+| Script | What it does |
+|---|---|
+| `Find-Coordinators.ps1 -Watch` | Definitively map a stick to a COM port by unplugging it |
+| `Get-DeviceFingerprint.ps1` | Dump a device's ZCL fingerprint and generate a converter skeleton |
+
+### Start here
+
+```powershell
+cd xfinity-home\scripts
+.\Find-Coordinators.ps1
+```
+
+That tells you what the machine can see before anything is installed. If it
+cannot tell your two sticks apart — likely, since several Zigbee and Z-Wave
+coordinators share the same Silicon Labs CP210x bridge chip and therefore the
+same USB VID/PID — use `-Watch`, which identifies a stick by noticing which
+port disappears when you unplug it.
+
+## Things that will bite, in the order they will bite you
+
+**External converters are disabled by default.** Zigbee2MQTT 2.11.0 and later
+ship with `enable_external_js: false`. Custom device handlers are then ignored
+*silently* — no error, no log line naming the cause, devices just stay
+unsupported. The generated config sets it to `true`.
+
+**Check before you write a converter.** A good share of this fleet is already
+supported upstream — the Xfinity `XHS2-SE` contact sensor, Visonic `MCT-340 E`,
+Sercomm `SZ-PIR02`/`SZ-PIR04N`, Centralite `3323-G`/`3328-G`/`3400-D`,
+SmartThings `3300-S`. Pair first; only devices Zigbee2MQTT logs as unsupported
+need work. See [`external_converters/README.md`](external_converters/README.md).
+
+**The Zigbee channel is a one-time free choice.** Changing it later forces a
+re-pair of every device. Since the whole fleet is being factory reset anyway,
+pick it now — the default here is 25, which sits clear of the busiest 2.4 GHz
+Wi-Fi range. Check it against your own Wi-Fi channel before committing.
+
+**Configure the Z-Wave security keys before including the lock.** This is the
+one genuinely unrecoverable ordering mistake in the whole build. A Z-Wave lock
+included without security keys present will pair, appear healthy, report itself
+as a lock — and then reject every lock/unlock command. There is no way to add
+security to an existing association; the fix is a full exclude and re-include.
+`04-Setup-ZWaveJS.ps1` generates the four keys and prints them before it ever
+mentions inclusion.
+
+**One process per serial port.** If Zigbee2MQTT and Z-Wave JS are pointed at
+the same COM port, the second to start fails to open it. Worth remembering with
+a dual-radio stick like the HUSBZB-1, which presents two ports from one dongle.
+
+**Sleepy devices fail `configure` on the first try.** Battery sensors are
+asleep when Zigbee2MQTT tries to bind clusters. Expected. Wake the device and
+use Reconfigure. Do not paper over it with a `try/catch` — that converts a
+retryable timeout into a device that pairs but never reports.
+
+## Where things live
+
+```
+xfinity-home/
+├── scripts/                    numbered setup + two discovery helpers
+├── config/
+│   ├── mosquitto/              broker config (deployed to ProgramData)
+│   ├── zigbee2mqtt/            configuration.yaml template
+│   └── go2rtc/                 camera stream config template
+├── external_converters/        ex-Xfinity device handlers (.mjs)
+└── docs/
+    ├── pairing-runbook.md      per-device-class pairing procedure
+    └── troubleshooting.md      symptom → cause
+```
+
+Runtime state and secrets live outside the repository:
+
+| Path | Contents |
+|---|---|
+| `C:\ProgramData\xfinity-home\credentials.json` | MQTT account (ACL: SYSTEM + Administrators) |
+| `C:\ProgramData\xfinity-home\zwave-keys.json` | Z-Wave security keys (same ACL) |
+| `C:\ProgramData\xfinity-home\mosquitto\` | Broker config, password file, persistence, log |
+| `C:\zigbee2mqtt\` | Zigbee2MQTT checkout; config in `data\` |
+| `C:\zwave-js-ui\` | Z-Wave JS UI |
+| `C:\go2rtc\` | go2rtc |
+
+Generated credentials never enter the repository. Back up `zwave-keys.json`
+somewhere safe — losing it means excluding and re-including every secure
+Z-Wave device, the lock included.
+
+## Services
+
+All three run as scheduled tasks at startup under SYSTEM, which avoids taking a
+dependency on NSSM or WinSW. Mosquitto runs as a real Windows service.
+
+```powershell
+Get-ScheduledTask -TaskName Zigbee2MQTT, ZWaveJSUI, go2rtc
+Start-ScheduledTask -TaskName Zigbee2MQTT
+Get-Service mosquitto
+```
+
+Zigbee2MQTT crash recovery uses its own `Z2M_WATCHDOG`, which restarts the
+controller internally on a 1/5/15/30/60-minute backoff.
+
+## Web interfaces
+
+All bound to loopback. Reach them from another machine only after deciding you
+want that.
+
+| Service | URL | Auth |
+|---|---|---|
+| Zigbee2MQTT | http://127.0.0.1:8080 | token, printed at setup |
+| Z-Wave JS UI | http://127.0.0.1:8091 | set on first run |
+| go2rtc | http://127.0.0.1:1984 | none — keep it on loopback |
+
+## On the legality of the hardware side
+
+Factory-resetting devices you own, running them on open-source software, and
+declining to route your home's sensor data through an ISP is squarely within
+what owning hardware means. Nothing in this repository circumvents access
+controls, extracts vendor firmware or touches a service you do not have rights
+to — it configures three widely-used open-source projects to talk to radios
+over USB. The physical reset, PoE and firmware work described in the brief is
+yours; this kit picks up at the point where a device is ready to join a
+network you control.
