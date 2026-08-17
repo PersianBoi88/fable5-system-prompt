@@ -130,8 +130,29 @@ command. Recoverable only by excluding and re-including.
 
 ## After everything is paired
 
-- Back up `C:\ProgramData\xfinity-home\zwave-keys.json` off the machine.
-- Back up `C:\zigbee2mqtt\data\` — it holds the network key and device
-  database. Without it a coordinator failure means re-pairing every device.
-- Confirm all four services survive a reboot.
+Verify the whole stack in one command:
+
+```powershell
+.\scripts\Test-Stack.ps1
+```
+
+It checks live state over MQTT, not just whether processes are running, and
+exits non-zero on failure. Among other things it will tell you if permit-join
+was left open or if any device is still unsupported.
+
+Then take a backup — this is the point at which you have something worth
+losing:
+
+```powershell
+.\scripts\Backup-Config.ps1 -StopServices
+```
+
+Copy the archive **off this machine**. It captures the Z-Wave keys and the
+Zigbee device database; without those, a coordinator or disk failure means
+physically re-pairing every device in the house.
+
+Finally:
+
+- Reboot once and re-run `Test-Stack.ps1` to confirm all four services come
+  back on their own.
 - Close permit-join and leave it closed.

@@ -64,12 +64,19 @@ Run each from an **elevated PowerShell** session, in this order.
 | 4 | `04-Setup-ZWaveJS.ps1` | Z-Wave JS UI + **security keys for the lock** |
 | 5 | `05-Setup-Cameras.ps1` | go2rtc + RTSP path discovery |
 
-Two helpers, used as needed rather than in sequence:
+Four helpers, used as needed rather than in sequence:
 
 | Script | What it does |
 |---|---|
 | `Find-Coordinators.ps1 -Watch` | Definitively map a stick to a COM port by unplugging it |
 | `Get-DeviceFingerprint.ps1` | Dump a device's ZCL fingerprint and generate a converter skeleton |
+| `Test-Stack.ps1` | End-to-end health check across all four services |
+| `Backup-Config.ps1` | Archive the state whose loss means re-pairing everything |
+
+`Test-Stack.ps1` checks live state over MQTT rather than just whether processes
+exist — a Zigbee2MQTT task sitting in "Running" with its coordinator unplugged
+is not a healthy stack. It exits non-zero on failure, so it works as a smoke
+test. Run it after setup and whenever something feels wrong.
 
 ### Start here
 
@@ -145,9 +152,29 @@ Runtime state and secrets live outside the repository:
 | `C:\zwave-js-ui\` | Z-Wave JS UI |
 | `C:\go2rtc\` | go2rtc |
 
-Generated credentials never enter the repository. Back up `zwave-keys.json`
-somewhere safe — losing it means excluding and re-including every secure
-Z-Wave device, the lock included.
+Generated credentials never enter the repository.
+
+## Backups
+
+Two things in this stack are genuinely irreplaceable, and both mean physically
+re-pairing every device in the house if lost:
+
+- **`zwave-keys.json`** — the Z-Wave network security keys. Without them every
+  secure device, the lock included, must be excluded and re-included.
+- **`C:\zigbee2mqtt\data\`** — the Zigbee network key, device database and
+  coordinator backup. Without them every sensor must be re-paired.
+
+```powershell
+.\scripts\Backup-Config.ps1              # hot copy
+.\scripts\Backup-Config.ps1 -StopServices # quiesced, guaranteed consistent
+```
+
+The archive contains network keys, the MQTT password and any camera passwords
+in cleartext. It is ACL-restricted on creation, but that does not survive a
+copy to a USB stick or a cloud folder — anyone holding it can join your Z-Wave
+network and operate the lock. Store it accordingly, and store it **off this
+machine**: a disk failure is one of the two cases a backup protects against,
+and a backup that only exists on the failed disk protects against neither.
 
 ## Services
 
