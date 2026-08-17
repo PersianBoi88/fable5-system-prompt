@@ -1,0 +1,17 @@
+{
+  "name": "xfinity-home-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local mobile dashboard for the reclaimed Xfinity Home control plane",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22.2.0"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.1"
+  }
+}

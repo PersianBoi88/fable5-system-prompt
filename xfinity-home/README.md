@@ -44,8 +44,20 @@ definitions your hardware may already match.
                      │                                          │
                      └──────────────┬───────────────────────────┘
                                     ▼
-                          dashboard / automations
+                           dashboard backend
+                           127.0.0.1:8099  (loopback only)
+                                    │
+                                    ▼
+                            tailscale serve
+                          https://<host>.ts.net
+                                    │
+                                    ▼
+                                  phone
 ```
+
+Note where the trust boundary sits: the dashboard binds loopback and is
+published to your tailnet by `tailscale serve`, which also supplies TLS.
+Nothing listens on your LAN, and nothing is port-forwarded.
 
 Nothing in this stack talks to a vendor cloud. The broker is the only
 integration point, so a dashboard subscribes in one place rather than speaking
@@ -63,6 +75,8 @@ Run each from an **elevated PowerShell** session, in this order.
 | 3 | `03-Setup-Zigbee2MQTT.ps1` | Clone, build, configure, startup task |
 | 4 | `04-Setup-ZWaveJS.ps1` | Z-Wave JS UI + **security keys for the lock** |
 | 5 | `05-Setup-Cameras.ps1` | go2rtc + RTSP path discovery |
+| 6 | `06-Setup-Dashboard.ps1` | Mobile dashboard: account, lock PIN, startup task |
+| 7 | `07-Setup-RemoteAccess.ps1` | Tailscale + HTTPS, for phone access |
 
 Four helpers, used as needed rather than in sequence:
 
@@ -70,6 +84,7 @@ Four helpers, used as needed rather than in sequence:
 |---|---|
 | `Find-Coordinators.ps1 -Watch` | Definitively map a stick to a COM port by unplugging it |
 | `Get-DeviceFingerprint.ps1` | Dump a device's ZCL fingerprint and generate a converter skeleton |
+| `Get-ZWaveTopics.ps1` | Observe the Z-Wave topic tree and find the lock's real topics |
 | `Test-Stack.ps1` | End-to-end health check across all four services |
 | `Backup-Config.ps1` | Archive the state whose loss means re-pairing everything |
 
@@ -197,9 +212,36 @@ want that.
 
 | Service | URL | Auth |
 |---|---|---|
+| Dashboard | http://127.0.0.1:8099 | login + separate lock PIN |
 | Zigbee2MQTT | http://127.0.0.1:8080 | token, printed at setup |
 | Z-Wave JS UI | http://127.0.0.1:8091 | set on first run |
 | go2rtc | http://127.0.0.1:1984 | none — keep it on loopback |
+
+## Phone access
+
+The dashboard ([`dashboard/`](dashboard/)) shows sensors, cameras and the lock,
+and can operate the deadbolt. It reaches your phone over Tailscale at
+`https://<machine>.ts.net`.
+
+The security model is worth understanding, because the thing it defends against
+is probably not what you'd assume. Tailscale already handles network access —
+the real exposure is **an unlocked phone in someone else's hands**, which is
+already authenticated to the tailnet. So network access deliberately is *not*
+what gates the door: the lock requires a separate PIN, re-entered on every
+operation, rate-limited to five attempts, and written to an audit log.
+
+MQTT credentials never reach the browser. The phone talks to the dashboard
+backend; only the backend talks to the broker.
+
+One caveat on the no-cloud goal: Tailscale's coordination server is SaaS. It
+brokers keys and cannot read your traffic — your telemetry never leaves the
+house — but it is a third-party dependency. If that bothers you later,
+[Headscale](https://github.com/juanfont/headscale) is a self-hosted control
+server and nothing in the dashboard would change.
+
+**Before trusting the unlock button:** turn the deadbolt by hand and confirm
+the tile follows it in both directions. A state topic that reads backwards will
+confidently report the house locked while it stands open.
 
 ## On the legality of the hardware side
 
