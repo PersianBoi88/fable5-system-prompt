@@ -1,0 +1,7 @@
+node_modules/
+*.log
+# Runtime config lives in C:\ProgramData\xfinity-home\dashboard.json and holds
+# password hashes, the lock PIN hash and the MQTT password. It must never be
+# committed, including any copy made here for local testing.
+dashboard.json
+config.json

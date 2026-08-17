@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0f1115">
+<title>Home</title>
+<style>
+  /* Self-contained by necessity: the CSP forbids any external origin. */
+  :root {
+    --bg: #0f1115;
+    --surface: #171a21;
+    --surface-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e7eaf0;
+    --muted: #8b93a3;
+    --accent: #5b9dff;
+    --ok: #3ec98a;
+    --warn: #f0b849;
+    --alert: #f2683c;
+    --danger: #e8534f;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f6fa; --surface: #ffffff; --surface-2: #eef1f6;
+      --border: #d9dee8; --text: #161a22; --muted: #5d6675;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+             env(safe-area-inset-bottom) env(safe-area-inset-left);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 16px 14px 48px; }
+
+  /* --- header --- */
+  header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  h1 { font-size: 19px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 0 3px rgba(62,201,138,.16); }
+  .dot.off { background: var(--danger); box-shadow: 0 0 0 3px rgba(232,83,79,.16); }
+  .spacer { flex: 1; }
+  .linkbtn {
+    background: none; border: none; color: var(--muted);
+    font: inherit; font-size: 13px; cursor: pointer; padding: 6px;
+  }
+  .linkbtn:hover { color: var(--text); }
+
+  h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); font-weight: 600; margin: 26px 0 10px;
+  }
+
+  /* --- cards --- */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+
+  .dev { display: flex; flex-direction: column; gap: 6px; min-height: 84px; }
+  .dev .name {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .dev .val { font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
+  .dev .meta { font-size: 11px; color: var(--muted); margin-top: auto; }
+  .v-ok { color: var(--ok); } .v-alert { color: var(--alert); }
+  .v-warn { color: var(--warn); } .v-idle { color: var(--muted); }
+
+  .pill {
+    display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 20px;
+    background: var(--surface-2); color: var(--muted); border: 1px solid var(--border);
+  }
+  .pill.bad { color: var(--alert); border-color: var(--alert); }
+
+  /* --- lock --- */
+  .lock { border-width: 2px; }
+  .lock.locked { border-color: rgba(62,201,138,.5); }
+  .lock.unlocked { border-color: rgba(232,83,79,.6); }
+  .lock-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .lock-state { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .lock-actions { display: flex; gap: 10px; margin-top: 14px; }
+  button.act {
+    flex: 1; min-height: 46px; border-radius: 11px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text);
+    font: inherit; font-weight: 620; font-size: 15px; cursor: pointer;
+  }
+  button.act:active { transform: translateY(1px); }
+  button.act:disabled { opacity: .45; cursor: not-allowed; }
+  button.act.danger { border-color: var(--danger); color: #ff8f8b; }
+  button.act.good { border-color: var(--ok); color: var(--ok); }
+
+  /* --- pin / login --- */
+  .sheet {
+    position: fixed; inset: 0; background: rgba(0,0,0,.72);
+    display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50;
+  }
+  .sheet .card { width: 100%; max-width: 340px; }
+  input[type=password], input[type=text] {
+    width: 100%; min-height: 46px; padding: 10px 12px; margin-top: 8px;
+    border-radius: 11px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font: inherit; font-size: 16px;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .err { color: var(--alert); font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+  /* --- cameras --- */
+  .cam { padding: 0; overflow: hidden; }
+  .cam iframe { width: 100%; aspect-ratio: 16/9; border: 0; display: block; background: #000; }
+  .cam .name { padding: 9px 12px; font-size: 13px; font-weight: 600; }
+
+  details { margin-top: 8px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 6px 0; }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0;
+        font-size: 12px; border-bottom: 1px solid var(--border); }
+  .kv:last-child { border-bottom: 0; }
+  .kv .k { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kv .v { font-weight: 600; flex: none; }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 18px; }
+  .banner {
+    background: rgba(240,184,73,.12); border: 1px solid rgba(240,184,73,.4);
+    color: var(--warn); border-radius: 11px; padding: 10px 12px; font-size: 13px; margin-bottom: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div id="login" class="sheet" hidden>
+  <form class="card" id="loginForm">
+    <h1 style="margin-bottom:4px">Sign in</h1>
+    <div class="hint">Local dashboard. Nothing here leaves your network.</div>
+    <input type="text" id="u" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off">
+    <input type="password" id="p" placeholder="Password" autocomplete="current-password">
+    <div class="err" id="loginErr"></div>
+    <button class="act" type="submit" style="width:100%;margin-top:6px">Sign in</button>
+  </form>
+</div>
+
+<div id="pinSheet" class="sheet" hidden>
+  <form class="card" id="pinForm">
+    <h1 id="pinTitle" style="margin-bottom:4px">Confirm</h1>
+    <div class="hint" id="pinHint"></div>
+    <input type="password" id="pin" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN">
+    <div class="err" id="pinErr"></div>
+    <div class="lock-actions">
+      <button class="act" type="button" id="pinCancel">Cancel</button>
+      <button class="act danger" type="submit" id="pinGo">Confirm</button>
+    </div>
+  </form>
+</div>
+
+<div class="wrap" id="app" hidden>
+  <header>
+    <span class="dot" id="conn"></span>
+    <h1>Home</h1>
+    <span class="spacer"></span>
+    <button class="linkbtn" id="logout">Sign out</button>
+  </header>
+
+  <div id="banner"></div>
+  <div id="lockWrap"></div>
+
+  <h2>Sensors</h2>
+  <div class="grid" id="devices"></div>
+
+  <div id="camWrap"></div>
+
+  <div id="zwaveWrap"></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  let csrf = null;
+  let snapshot = null;
+  let es = null;
+  let pendingLock = null;
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  async function api(path, opts = {}) {
+    const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+    const res = await fetch(path, { ...opts, headers, credentials: 'same-origin' });
+    let body = null;
+    try { body = await res.json(); } catch { /* SSE or empty */ }
+    return { ok: res.ok, status: res.status, body };
+  }
+
+  // --- relative time --------------------------------------------------------
+  function ago(ts) {
+    if (!ts) return 'never';
+    const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (s < 60) return `${s}s ago`;
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+    return `${Math.floor(s / 86400)}d ago`;
+  }
+
+  // --- pick the headline reading out of a device's state --------------------
+  // Devices expose wildly different keys; show the one that matters and push
+  // the rest into the detail rows.
+  const PRIMARY = [
+    ['contact',     (v) => v ? { t: 'Closed', c: 'v-ok' } : { t: 'Open', c: 'v-alert' }],
+    ['occupancy',   (v) => v ? { t: 'Motion', c: 'v-alert' } : { t: 'Clear', c: 'v-idle' }],
+    ['water_leak',  (v) => v ? { t: 'LEAK', c: 'v-alert' } : { t: 'Dry', c: 'v-ok' }],
+    ['smoke',       (v) => v ? { t: 'SMOKE', c: 'v-alert' } : { t: 'Clear', c: 'v-ok' }],
+    ['vibration',   (v) => v ? { t: 'Vibration', c: 'v-alert' } : { t: 'Still', c: 'v-idle' }],
+    ['state',       (v) => ({ t: String(v), c: v === 'ON' ? 'v-ok' : 'v-idle' })],
+  ];
+
+  function primaryOf(st) {
+    for (const [key, fn] of PRIMARY) {
+      if (key in st) return fn(st[key]);
+    }
+    if ('temperature' in st) return { t: `${st.temperature}°`, c: 'v-idle' };
+    return { t: '—', c: 'v-idle' };
+  }
+
+  const SKIP_KEYS = new Set(['linkquality', 'update', 'update_available', 'last_seen']);
+
+  function deviceCard(d) {
+    const st = d.state || {};
+    const p = primaryOf(st);
+
+    const badges = [];
+    if (st.battery_low === true) badges.push('<span class="pill bad">battery low</span>');
+    if (st.tamper === true) badges.push('<span class="pill bad">tamper</span>');
+    if (!d.supported) badges.push('<span class="pill bad">unsupported</span>');
+    if (d.stale) badges.push('<span class="pill bad">stale</span>');
+
+    const bits = [];
+    if (typeof st.battery === 'number') bits.push(`${Math.round(st.battery)}%`);
+    if (typeof st.temperature === 'number' && !('temperature' in st && p.t.includes('°'))) {
+      bits.push(`${st.temperature}°`);
+    }
+    bits.push(ago(d.lastSeen));
+
+    return `<div class="card dev">
+      <div class="name" title="${esc(d.name)}">${esc(d.name)}</div>
+      <div class="val ${p.c}">${esc(p.t)}</div>
+      <div>${badges.join(' ')}</div>
+      <div class="meta">${esc(bits.join(' · '))}</div>
+    </div>`;
+  }
+
+  function lockCard(lock) {
+    if (!lock) return '';
+    const known = lock.locked !== null && lock.locked !== undefined;
+    const cls = !known ? '' : (lock.locked ? 'locked' : 'unlocked');
+    const label = !known ? 'Unknown' : (lock.locked ? 'Locked' : 'Unlocked');
+    const colour = !known ? 'v-idle' : (lock.locked ? 'v-ok' : 'v-alert');
+
+    const actions = lock.controllable ? `
+      <div class="lock-actions">
+        <button class="act good" data-lock="lock">Lock</button>
+        <button class="act danger" data-lock="unlock">Unlock</button>
+      </div>` : `<div class="hint">Display only — lock control is not configured.</div>`;
+
+    return `<h2>Front door</h2>
+      <div class="card lock ${cls}">
+        <div class="lock-head">
+          <span class="lock-state ${colour}">${esc(label)}</span>
+          <span class="spacer"></span>
+          <span class="pill">${esc(ago(lock.lastSeen))}</span>
+        </div>
+        ${actions}
+      </div>`;
+  }
+
+  function render() {
+    if (!snapshot) return;
+
+    $('conn').className = 'dot ' + (snapshot.connected ? 'on' : 'off');
+
+    const warnings = [];
+    if (!snapshot.connected) warnings.push('Not connected to the MQTT broker.');
+    else if (!snapshot.bridgeOnline) warnings.push('Zigbee2MQTT is offline — sensor data is stale.');
+    $('banner').innerHTML = warnings.length
+      ? `<div class="banner">${warnings.map(esc).join('<br>')}</div>` : '';
+
+    $('lockWrap').innerHTML = lockCard(snapshot.lock);
+
+    const devs = snapshot.devices || [];
+    $('devices').innerHTML = devs.length
+      ? devs.map(deviceCard).join('')
+      : '<div class="card empty">No devices joined yet.</div>';
+
+    const cams = snapshot.cameras || [];
+    $('camWrap').innerHTML = cams.length ? `<h2>Cameras</h2>` + cams.map((c) =>
+      `<div class="card cam" style="margin-bottom:10px">
+         <iframe src="${esc(c.url)}" loading="lazy" title="${esc(c.name)}"></iframe>
+         <div class="name">${esc(c.name)}</div>
+       </div>`).join('') : '';
+
+    const zw = snapshot.zwave || [];
+    $('zwaveWrap').innerHTML = zw.length ? `<h2>Z-Wave</h2>
+      <div class="card"><details><summary>${zw.length} values</summary>
+        ${zw.map((z) => `<div class="kv"><span class="k" title="${esc(z.topic)}">${esc(z.short)}</span>
+           <span class="v">${esc(typeof z.value === 'object' ? JSON.stringify(z.value) : z.value)}</span></div>`).join('')}
+      </details></div>` : '';
+  }
+
+  // --- live updates ---------------------------------------------------------
+  function connectStream() {
+    if (es) es.close();
+    es = new EventSource('/api/events');
+
+    es.addEventListener('snapshot', (e) => { snapshot = JSON.parse(e.data); render(); });
+
+    es.addEventListener('value', () => { refreshSoon(); });
+    es.addEventListener('devices', () => { refreshSoon(); });
+    es.addEventListener('status', () => { refreshSoon(); });
+
+    es.onerror = () => {
+      // EventSource reconnects on its own; reflect the gap in the UI meanwhile.
+      $('conn').className = 'dot off';
+    };
+  }
+
+  // Individual value events fire in bursts when a device reports; coalesce
+  // them into one snapshot fetch rather than re-rendering per message.
+  let refreshTimer = null;
+  function refreshSoon() {
+    if (refreshTimer) return;
+    refreshTimer = setTimeout(async () => {
+      refreshTimer = null;
+      const r = await api('/api/state');
+      if (r.ok) { snapshot = r.body; render(); }
+      else if (r.status === 401) showLogin();
+    }, 250);
+  }
+
+  // Keep "5m ago" honest without server chatter.
+  setInterval(() => { if (snapshot && !document.hidden) render(); }, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshSoon(); });
+
+  // --- lock flow ------------------------------------------------------------
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-lock]');
+    if (!btn) return;
+    pendingLock = btn.getAttribute('data-lock');
+    $('pinTitle').textContent = pendingLock === 'lock' ? 'Lock the door' : 'Unlock the door';
+    $('pinHint').textContent = pendingLock === 'unlock'
+      ? 'This physically unlocks your front door. Enter your PIN to confirm.'
+      : 'Enter your PIN to confirm.';
+    $('pinGo').className = 'act ' + (pendingLock === 'unlock' ? 'danger' : 'good');
+    $('pinErr').textContent = '';
+    $('pin').value = '';
+    $('pinSheet').hidden = false;
+    setTimeout(() => $('pin').focus(), 50);
+  });
+
+  $('pinCancel').addEventListener('click', () => {
+    $('pinSheet').hidden = true;
+    pendingLock = null;
+  });
+
+  $('pinForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!pendingLock) return;
+    $('pinGo').disabled = true;
+    const r = await api('/api/lock', {
+      method: 'POST',
+      body: JSON.stringify({ action: pendingLock, pin: $('pin').value }),
+    });
+    $('pinGo').disabled = false;
+
+    if (r.ok) {
+      $('pinSheet').hidden = true;
+      pendingLock = null;
+      refreshSoon();
+    } else {
+      $('pinErr').textContent = (r.body && r.body.error) || 'Failed';
+      $('pin').value = '';
+      $('pin').focus();
+    }
+  });
+
+  // --- auth -----------------------------------------------------------------
+  function showLogin() {
+    if (es) { es.close(); es = null; }
+    $('app').hidden = true;
+    $('login').hidden = false;
+    setTimeout(() => $('u').focus(), 50);
+  }
+
+  function showApp() {
+    $('login').hidden = true;
+    $('app').hidden = false;
+  }
+
+  $('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('loginErr').textContent = '';
+    const r = await api('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ username: $('u').value, password: $('p').value }),
+    });
+    if (r.ok) {
+      csrf = r.body.csrf;
+      $('p').value = '';
+      showApp();
+      await refreshSoon();
+      connectStream();
+    } else {
+      $('loginErr').textContent = (r.body && r.body.error) || 'Sign in failed';
+      $('p').value = '';
+    }
+  });
+
+  $('logout').addEventListener('click', async () => {
+    await api('/api/logout', { method: 'POST' });
+    csrf = null;
+    snapshot = null;
+    showLogin();
+  });
+
+  // --- boot -----------------------------------------------------------------
+  (async () => {
+    const r = await api('/api/session');
+    if (r.ok && r.body.authenticated) {
+      csrf = r.body.csrf;
+      showApp();
+      await refreshSoon();
+      connectStream();
+    } else {
+      showLogin();
+    }
+  })();
+})();
+</script>
+</body>
+</html>

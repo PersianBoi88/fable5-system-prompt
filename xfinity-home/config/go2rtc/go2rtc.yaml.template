@@ -1,0 +1,89 @@
+# =============================================================================
+# go2rtc - camera stream ingest and restreaming
+# =============================================================================
+# Deployed by scripts/05-Setup-Cameras.ps1 to:
+#   C:\ProgramData\xfinity-home\go2rtc\go2rtc.yaml
+#
+# go2rtc is used here rather than raw FFmpeg because it connects to each camera
+# exactly once and fans the stream out to many consumers. Pointing three
+# FFmpeg processes at one Sercomm XCam will overrun its connection limit and
+# the camera will start refusing connections outright.
+#
+# It also republishes over WebRTC, so a browser dashboard can display the feed
+# without a transcode - which matters on a Windows host that is also running
+# two radio bridges.
+# =============================================================================
+
+api:
+  # Web UI and REST API. Loopback only - this is a camera control surface.
+  # Reach it from another machine over the LAN only after you have thought
+  # about that. Stream previews at http://127.0.0.1:1984
+  listen: "127.0.0.1:1984"
+
+rtsp:
+  # Local RTSP republishing endpoint. An NVR or recorder consumes from here
+  # instead of hitting the camera directly.
+  listen: ":8554"
+
+webrtc:
+  # Needed for low-latency browser playback. The candidate must be an address
+  # the browser can actually reach; leave commented for loopback-only use.
+  listen: ":8555"
+  # candidates:
+  #   - 192.168.1.10:8555
+
+ffmpeg:
+  # Absolute path filled in at deploy time. go2rtc only needs FFmpeg for
+  # transcoding paths; direct RTSP passthrough does not touch it.
+  bin: "{{FFMPEG_PATH}}"
+
+log:
+  level: info
+
+# =============================================================================
+# Streams
+# =============================================================================
+# Each entry is: <name>: <source-url>
+#
+# The RTSP path for the Sercomm XCam series is NOT publicly documented and
+# differs across firmware. Discover the working path with:
+#
+#     .\scripts\05-Setup-Cameras.ps1 -Probe -CameraIp 192.168.1.50 `
+#         -CameraUser admin -CameraPassword <pw>
+#
+# That probes the candidate paths below and reports which one returns a video
+# stream. Paste the winner here.
+#
+# Candidate paths observed across Sercomm firmware generations:
+#   /img/media.sav        classic Sercomm main profile
+#   /img/video.sav
+#   /video.pro1           profile 1 (usually the high-res stream)
+#   /video.pro2           profile 2 (usually a lower-res substream)
+#   /video.pro3
+#   /live/ch0
+#   /h264
+#   /stream1
+#   /onvif1
+#
+# NOTE ON CREDENTIALS: the URL below carries the camera password in cleartext.
+# This file is ACL-restricted to SYSTEM and Administrators at deploy time.
+# =============================================================================
+
+streams:
+  # Replace with real entries once the path is known. Example shape:
+  #
+  # front_door: rtsp://admin:PASSWORD@192.168.1.50:554/img/media.sav
+  #
+  # For a camera that also exposes a substream, list both sources under one
+  # name - go2rtc will pick per consumer, serving the cheap substream to a
+  # dashboard tile and the main stream to a recorder:
+  #
+  # driveway:
+  #   - rtsp://admin:PASSWORD@192.168.1.51:554/video.pro1
+  #   - rtsp://admin:PASSWORD@192.168.1.51:554/video.pro2
+  #
+  # If a camera is reachable but its stream stalls after a few seconds, force
+  # TCP transport - these cameras handle RTP over UDP poorly across subnets:
+  #
+  # side_gate: ffmpeg:rtsp://admin:PASSWORD@192.168.1.52:554/img/media.sav#input=rtsp/tcp
+  {}
